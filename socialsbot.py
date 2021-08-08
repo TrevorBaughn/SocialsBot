@@ -7,6 +7,7 @@ while(True):
         from discord.ext import commands, tasks
         from discord.utils import get
         import configparser
+        import scrapetube
 
         print("Imported libraries successfully")
         break
@@ -14,17 +15,14 @@ while(True):
         print("Failed to import libraries, trying to install them and retrying...")
         os.system('pip3 install discord.py')
         os.system('pip3 install configparser')
-        os.system('pip3 install jsons')
+        os.system('pip3 install scrapetube')
 
-        
+
+
 #setup to grab from config
 config = configparser.ConfigParser()
 config.read('config.ini')
 config.sections()
-
-#set up Social APIs
-
-
 
 #set up Discord bot
 print('\nDISCORDBOT--------')
@@ -50,6 +48,9 @@ async def on_ready():
 
     print("\nBot initialization complete...\n\n")
 
+    print("Checking for posts...\n")
+    check_for_posts.start()
+
 #########################################################################
 
 #makes Social client object
@@ -59,6 +60,36 @@ class Socials:
         self.discord_channels = []
         self.platform = platform
         self.id = id
+        self.message = ""
+
+        self.last_url = None
+
+    def check_for_post(self):
+        if self.platform == 'youtube' and self.social_id != None:
+            return self.check_youtube()
+        elif self.platform == 'twitter' and self.social_id != None:
+            return self.check_twitter()
+
+    def check_youtube(self):
+        print(f"{self.id} checking for new youtube videos...")
+
+        videos = scrapetube.get_channel(self.social_id)
+        for video in videos: #I know this looks inefficient as all hell, but scrapetube doesn't have the docs to help me figure out another way to get 1 video...
+            url = f"https://www.youtube.com/watch?v={video['videoId']}"
+            break
+            
+        #checks the last video seen to see if it's the same as the one now
+        if self.last_url != url:
+            result = url
+            self.last_url = url
+
+            return result
+        else: 
+            result = None
+
+    def check_twitter(self):
+        print(f"\n{self.id} checking for new tweets...")
+        #twitter code here
 
 #social maker
 class CreateSocial:
@@ -73,6 +104,18 @@ Social = CreateSocial()
 
 ############################################################################
 
+@tasks.loop(seconds=5)
+async def check_for_posts():
+    for i in Social.id:
+        url = Social.id[i].check_for_post()
+        message = Social.id[i].message
+        post = f"{message}\n{url}"
+        if url is not None:
+            print(post)
+            for j in Social.id[i].discord_channels:
+                channel = bot.get_channel(j)
+                await channel.send(post)
+
 
 
 platforms = ['twitter','youtube']
@@ -82,7 +125,7 @@ async def create(ctx, platform, id):
     if platform in platforms:
         Social.create(platform, id)
 
-        message = f"Social created with\n ID: {id}\n Platform: {platform}"
+        message = f"Social created with\n ID: `{id}`\n Platform: `{platform}`"
         print(message)
         await ctx.send(message)
     else:
@@ -93,9 +136,16 @@ async def create(ctx, platform, id):
 async def user(ctx, id, user):
     platform = Social.id[id].platform
 
+    if platform == 'youtube':
+        try:
+            scrapetube.get_channel(user)
+        except:
+            raise commands.ArgumentParsingError(message=f'{user} channel does not exist.')
+
+
     Social.id[id].social_id = user
 
-    message = f"ID: {id}\n Social social ID is now: {Social.id[id].social_id}"
+    message = f"ID: `{id}`\n   Social social ID is now: `{Social.id[id].social_id}`"
     print(message)
     await ctx.send(message)
 
@@ -105,18 +155,38 @@ async def channel(ctx, id):
     def check(msg):
         return ctx.author == msg.author
     
-    await ctx.send(f"Mention a channel you want {id} to forward to.")
+    await ctx.send(f"Mention a channel you want `{id}` to forward to.")
     msg = await bot.wait_for('message', timeout=30.0, check=check)
     msg = msg.content.split("#")[1].split('>')[0]
     channel = get(ctx.guild.channels, id=int(msg))
 
-    Social.id[id].discord_channels.append(channel)
+    Social.id[id].discord_channels.append(int(msg))
 
-    message = f"ID: {id}\n Social has had #{channel} added to list of channels to send to."
+    message = f"ID: `{id}`\n   Social has had #{channel}:{msg} added to list of channels to send to."
     print(message)
     await ctx.send(message)
 
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def message(ctx, id):
+    def check(msg):
+        return ctx.author == msg.author
+    
+    await ctx.send(f"What message do you want to go along with the posts `{id}` forwards from.")
+    msg = await bot.wait_for('message', timeout=30.0, check=check)
+    msg = msg.content
 
+    Social.id[id].message = msg
 
+    message = f'ID: `{id}`\n   Social has had: \n"{msg}"\n, added to be a message to send with the link'
+    print(message)
+    await ctx.send(message)
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def check(ctx, id):
+    message = Social.id[id].check_for_post()
+    print(message)
+    ctx.send(message)
 
 bot.run(discord_token)
