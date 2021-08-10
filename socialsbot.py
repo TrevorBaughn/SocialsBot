@@ -8,6 +8,7 @@ while(True):
         from discord.utils import get
         import configparser
         import scrapetube
+        import pickle
 
         print("Imported libraries successfully")
         break
@@ -42,7 +43,7 @@ async def on_ready():
     await bot.wait_until_ready()
 
     #print the names of guilds connected to
-    print(f'{bot.user} has connected to Discord in:')
+    print(f'\n{bot.user} has connected to Discord in:')
     for guild in bot.guilds:
         print(f'  {guild.name}(id:{guild.id})')
 
@@ -60,7 +61,7 @@ class Socials:
         self.discord_channels = []
         self.platform = platform
         self.id = id
-        self.message = ""
+        self.message = None
 
         self.last_url = None
 
@@ -98,6 +99,26 @@ class CreateSocial:
 
 Social = CreateSocial()
 
+#load shit
+print('Loading socials...')
+with os.scandir('saves/') as dir_contents:
+    for entry in dir_contents:
+        file = entry.name
+        filename = file.replace('.pkl','')
+
+        instance = Socials(None, filename)
+
+        Social.id[filename] = instance
+
+        with open(f'saves/{file}', 'rb') as inp:
+            Social.id[filename] = pickle.load(inp)
+print("Socials loaded")
+            
+
+
+
+        
+
 ############################################################################
 
 @tasks.loop(seconds=5)
@@ -118,14 +139,20 @@ platforms = ['youtube']
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def create(ctx, platform, id):
-    if platform in platforms:
-        Social.create(platform, id)
+    try:
+        int(id)
+        raise commands.ArgumentParsingError(message=f"ID can't be a number")
+    except:
 
-        message = f"Social created with\n ID: `{id}`\n Platform: `{platform}`"
-        print(message)
-        await ctx.send(message)
-    else:
-        raise commands.ArgumentParsingError(message=f'{platform} is not a valid platform.')
+        if platform in platforms:
+            Social.create(platform, id)
+
+            message = f"Social created with\n ID: `{id}`\n Platform: `{platform}`"
+            print(message)
+            await ctx.send(message)
+            save_one(id)
+        else:
+            raise commands.ArgumentParsingError(message=f'{platform} is not a valid platform.')
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -134,7 +161,9 @@ async def user(ctx, id, user):
 
     if platform == 'youtube':
         try:
-            scrapetube.get_channel(user)
+            videos = scrapetube.get_channel(user)
+            for video in videos: #I know this looks inefficient as all hell, but scrapetube doesn't have the docs to help me figure out another way to get 1 video...
+                break
         except:
             raise commands.ArgumentParsingError(message=f'{user} channel does not exist.')
 
@@ -144,6 +173,7 @@ async def user(ctx, id, user):
     message = f"ID: `{id}`\n   Social social ID is now: `{Social.id[id].social_id}`"
     print(message)
     await ctx.send(message)
+    save_one(id)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -161,6 +191,7 @@ async def channel(ctx, id):
     message = f"ID: `{id}`\n   Social has had #{channel}:{msg} added to list of channels to send to."
     print(message)
     await ctx.send(message)
+    save_one(id)
 
 @bot.command()
 @commands.has_permissions(administrator=True)
@@ -177,32 +208,111 @@ async def message(ctx, id):
     message = f'ID: `{id}`\n   Social has had: \n"{msg}"\n, added to be a message to send with the link'
     print(message)
     await ctx.send(message)
+    save_one(id)
+
+##
+def save_one(id):
+    try:
+        Social.id[id]
+    except NameError:
+        var_exists = False
+    else:
+        var_exists = True
+    
+    if var_exists:
+        with open(f'saves/{id}.pkl', 'wb') as outp:
+            pickle.dump(Social.id[id], outp, pickle.HIGHEST_PROTOCOL)
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def delete(ctx, id):
+    del Social.id[id]
+    path = os.path.realpath(__file__)
+    path = path.replace('\socialsbot.py', '')
+    path = path + f'\saves\{id}.pkl'
+    os.remove(path)
+
+    message = f'ID: `{id}`\n   Deleted'
+    print(message)
+    await ctx.send(message)
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def check(ctx, id):
+    message = f'Checking ID: {id}...'
+    print(message)
+    await ctx.send(message)
+
+    try:
+        check = Social.id[id].id
+
+        message = f"""
+ID: `{Social.id[id].id}`
+Platform: `{Social.id[id].platform}`
+Social ID: `{Social.id[id].social_id}`
+Discord Channels: `{Social.id[id].discord_channels}`
+Last URL: `{Social.id[id].last_url}`
+Message: `{Social.id[id].message}`"""
+    except:
+        message = f"ID: {id}\n  ID does not exist"
+
+    print(message)
+    await ctx.send(message)
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def socials(ctx):
+    message = 'List of IDs:'
+    for i in Social.id:
+        message.append(f"\n- `{i.id}`")
+        print(message)
+        await ctx.send(message)
+
+##
 
 ######################################Error Handling
 
 @create.error
 async def create_error(ctx, error):
+    error = f'`{error}`'
     msg = f'Create Error:\n  {error}'
     print(msg)
-    ctx.send(msg)
+    await ctx.send(msg)
 
 @user.error
 async def user_error(ctx, error):
+    error = f'`{error}`'
     msg = f'User Error:\n  {error}'
     print(msg)
-    ctx.send(msg)
+    await ctx.send(msg)
 
 @channel.error
 async def channel_error(ctx, error):
+    error = f'`{error}`'
     msg = f'Channel Error:\n  {error}'
     print(msg)
-    ctx.send(msg)
+    await ctx.send(msg)
 
 @message.error
 async def message_error(ctx, error):
+    error = f'`{error}`'
     msg = f'Message Error:\n  {error}'
     print(msg)
-    ctx.send(msg)
+    await ctx.send(msg)
+
+@check.error
+async def check_error(ctx, error):
+    error = f'`{error}`'
+    msg = f'Check Error:\n  {error}'
+    print(msg)
+    await ctx.send(msg)
+
+@delete.error
+async def delete_error(ctx, error):
+    error = f'`{error}`'
+    msg = f'Delete Error:\n  {error}'
+    print(msg)
+    await ctx.send(msg)
 
 #########################################
 
