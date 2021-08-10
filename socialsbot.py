@@ -100,6 +100,10 @@ class CreateSocial:
 Social = CreateSocial()
 
 #load shit
+try: #makes directory if it doesn't already exist
+    os.mkdir('saves') 
+except:
+    print("")
 print('Loading socials...')
 with os.scandir('saves/') as dir_contents:
     for entry in dir_contents:
