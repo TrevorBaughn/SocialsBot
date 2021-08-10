@@ -178,11 +178,33 @@ async def message(ctx, id):
     print(message)
     await ctx.send(message)
 
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def check(ctx, id):
-    message = Social.id[id].check_for_post()
-    print(message)
-    ctx.send(message)
+######################################Error Handling
+
+@create.error
+async def create_error(ctx, error):
+    msg = f'Create Error:\n  {error}'
+    print(msg)
+    ctx.send(msg)
+
+@user.error
+async def user_error(ctx, error):
+    msg = f'User Error:\n  {error}'
+    print(msg)
+    ctx.send(msg)
+
+@channel.error
+async def channel_error(ctx, error):
+    msg = f'Channel Error:\n  {error}'
+    print(msg)
+    ctx.send(msg)
+
+@message.error
+async def message_error(ctx, error):
+    msg = f'Message Error:\n  {error}'
+    print(msg)
+    ctx.send(msg)
+
+#########################################
+
 
 bot.run(discord_token)
