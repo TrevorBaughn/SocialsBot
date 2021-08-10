@@ -67,8 +67,6 @@ class Socials:
     def check_for_post(self):
         if self.platform == 'youtube' and self.social_id != None:
             return self.check_youtube()
-        elif self.platform == 'twitter' and self.social_id != None:
-            return self.check_twitter()
 
     def check_youtube(self):
         print(f"{self.id} checking for new youtube videos...")
@@ -87,9 +85,7 @@ class Socials:
         else: 
             result = None
 
-    def check_twitter(self):
-        print(f"\n{self.id} checking for new tweets...")
-        #twitter code here
+
 
 #social maker
 class CreateSocial:
@@ -118,7 +114,7 @@ async def check_for_posts():
 
 
 
-platforms = ['twitter','youtube']
+platforms = ['youtube']
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def create(ctx, platform, id):
